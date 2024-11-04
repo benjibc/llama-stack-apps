@@ -13,7 +13,7 @@ import fire
 from llama_stack_client import LlamaStackClient
 from termcolor import cprint
 from .util import data_url_from_file
-
+from tqdm import tqdm
 
 async def run_main(host: str, port: int, file_path: str):
     client = LlamaStackClient(
@@ -44,21 +44,29 @@ async def run_main(host: str, port: int, file_path: str):
     # test scoring with individual rows
     rows_paginated = client.datasetio.get_rows_paginated(
         dataset_id=filename_id,
-        rows_in_page=3,
+        rows_in_page=-1,
         page_token=None,
         filter_condition=None,
     )
-    cprint(rows_paginated, "yellow")
 
     # check scoring functions available
     score_fn_list = client.scoring_functions.list()
     cprint([x.identifier for x in score_fn_list], "green")
 
-    score_rows = client.scoring.score(
-        input_rows=rows_paginated.rows,
-        scoring_functions=["braintrust::answer-correctness"],
-    )
-    cprint(f"Score Rows: {score_rows}", "red")
+    # We use 2 LLM As Judge scoring functions for the RAG agent evaluation:
+    # - braintrust::answer-correctness using Braintrust's answer-correctness scoring function
+    # - meta-reference::llm_as_judge_405b_correctness using Meta's LLM as Judge scoring function with 405B model
+    for i in tqdm(range(len(rows_paginated.rows))):
+        row = rows_paginated.rows[i]
+        score_rows = client.scoring.score(
+            input_rows=[row],
+            scoring_functions=[
+                "braintrust::answer-correctness",
+                "meta-reference::llm_as_judge_405b_correctness",
+            ],
+        )
+        cprint(f"Score Rows: {score_rows}", "red")
+        break
 
 
 def main(host: str, port: int, file_path: str):

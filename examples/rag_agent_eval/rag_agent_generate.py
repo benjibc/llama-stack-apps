@@ -118,8 +118,12 @@ async def run_main(host: str, port: int, docs_dir: str, input_file_path: str):
 
     for prompt in tqdm(user_prompts):
         print(f"Generating response for: {prompt}")
-        generated_response = await get_response_row(agent, prompt)
-        llamastack_generated_responses.append(generated_response)
+        try:
+            generated_response = await get_response_row(agent, prompt)
+            llamastack_generated_responses.append(generated_response)
+        except Exception as e:
+            print(f"Error generating response for {prompt}: {e}")
+            llamastack_generated_responses.append(None)
 
     df["generated_answer"] = llamastack_generated_responses
 
