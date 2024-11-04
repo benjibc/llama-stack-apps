@@ -7,18 +7,21 @@
 import asyncio
 import os
 import pandas as pd
-
+import json
 import fire
 
 from llama_stack_client import LlamaStackClient
 from termcolor import cprint
 from .util import data_url_from_file
 from tqdm import tqdm
+from pathlib import Path
 
-async def run_main(host: str, port: int, file_path: str):
+
+async def run_main(host: str, port: int, file_path: str, include_original_score: bool):
     client = LlamaStackClient(
         base_url=f"http://{host}:{port}",
     )
+    original_df = pd.read_csv(file_path)
 
     providers = client.providers.list()
     dataset_url = data_url_from_file(file_path)
@@ -56,6 +59,22 @@ async def run_main(host: str, port: int, file_path: str):
     # We use 2 LLM As Judge scoring functions for the RAG agent evaluation:
     # - braintrust::answer-correctness using Braintrust's answer-correctness scoring function
     # - meta-reference::llm_as_judge_405b_correctness using Meta's LLM as Judge scoring function with 405B model
+    scoring_functions = [
+        "braintrust::answer-correctness",
+        "meta-reference::llm_as_judge_405b_correctness",
+    ]
+    output_res = {
+        "input_query": [],
+        "generated_answer": [],
+        "expected_answer": [],
+    }
+    for x in scoring_functions:
+        output_res[x] = []
+    
+    if include_original_score:
+        output_res["original_correctness_llm"] = []
+        output_res["original_correctness_human"] = []
+
     for i in tqdm(range(len(rows_paginated.rows))):
         row = rows_paginated.rows[i]
         score_rows = client.scoring.score(
@@ -65,12 +84,26 @@ async def run_main(host: str, port: int, file_path: str):
                 "meta-reference::llm_as_judge_405b_correctness",
             ],
         )
-        cprint(f"Score Rows: {score_rows}", "red")
-        break
+        # cprint(f"Score Rows: {score_rows}", "red")
+        output_res["input_query"].append(row["input_query"])
+        output_res["expected_answer"].append(row["expected_answer"])
+        output_res["generated_answer"].append(row["generated_answer"])
+        for scoring_fn in scoring_functions:
+            output_res[scoring_fn].append(score_rows.results[scoring_fn].score_rows[0])
 
+        if include_original_score:
+            output_res["original_correctness_llm"].append(original_df.iloc[i]["correctness_llm"])
+            output_res["original_correctness_human"].append(original_df.iloc[i]["correctness_human"])
 
-def main(host: str, port: int, file_path: str):
-    asyncio.run(run_main(host, port, file_path))
+    # dump results
+    save_path = "./rag_scored/" + os.path.basename(file_path).replace(".csv", "-scored.xlsx")
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    with open(save_path, "wb") as f:
+        pd.DataFrame(output_res).to_excel(f, index=False)
+    cprint(f"Saved to {save_path}", "green")
+
+def main(host: str, port: int, file_path: str, include_original_score: bool = True):
+    asyncio.run(run_main(host, port, file_path, include_original_score))
 
 
 if __name__ == "__main__":
