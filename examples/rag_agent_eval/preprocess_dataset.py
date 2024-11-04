@@ -41,8 +41,8 @@ def preprocess_dataset(input_file_path, output_dir):
         df = df.reset_index(drop=True)
         
         # Create output directory if it doesn't exist
-        input_file_name = os.path.basename(input_file_path)
-        output_file_path = os.path.join(output_dir, f"processed_{input_file_name}.csv")
+        input_file_name = os.path.basename(input_file_path).replace(".xlsx", ".csv")
+        output_file_path = os.path.join(output_dir, f"processed_{input_file_name}")
         os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
 
         # Save to CSV
