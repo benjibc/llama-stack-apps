@@ -6,6 +6,7 @@
 
 import asyncio
 import os
+import pandas as pd
 
 import fire
 
@@ -49,7 +50,7 @@ async def run_main(host: str, port: int, file_path: str):
     )
     cprint(rows_paginated, "yellow")
 
-    # # check scoring functions available
+    # check scoring functions available
     score_fn_list = client.scoring_functions.list()
     cprint([x.identifier for x in score_fn_list], "green")
 
@@ -58,7 +59,6 @@ async def run_main(host: str, port: int, file_path: str):
         scoring_functions=["braintrust::answer-correctness"],
     )
     cprint(f"Score Rows: {score_rows}", "red")
-
 
 
 def main(host: str, port: int, file_path: str):

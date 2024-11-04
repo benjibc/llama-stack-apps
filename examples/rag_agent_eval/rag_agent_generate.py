@@ -9,6 +9,9 @@ import asyncio
 import fire
 import os
 import json
+import uuid
+import pandas as pd
+from tqdm import tqdm
 
 from llama_stack_client import LlamaStackClient
 from llama_stack_client.lib.agents.agent import Agent
@@ -54,16 +57,35 @@ def build_index(client: LlamaStackClient, file_dir: str, bank_id: str) -> str:
 
     return bank_id
 
-async def run_main(host: str, port: int, docs_dir: str):
+async def get_response_row(agent: Agent, input_query: str) -> str:
+    # single turn, each prompt is a new session
+    session_id = agent.create_session(f"session-{input_query}")
+    response = agent.create_turn(
+        messages=[
+            {
+                "role": "user",
+                "content": input_query,
+            }
+        ],
+        session_id=session_id,
+    )
+
+    async for chunk in response:
+        event = chunk.event
+        event_type = event.payload.event_type
+        if event_type == "turn_complete":
+            return event.payload.turn.output_message.content
+
+
+async def run_main(host: str, port: int, docs_dir: str, input_file_path: str):
     client = LlamaStackClient(base_url=f"http://{host}:{port}")
 
     bank_id = "rag_agent_docs"
     build_index(client, docs_dir, bank_id)
     print(f"Created bank: {bank_id}")
 
-
     agent_config = AgentConfig(
-        model="Llama3.2-1B-Instruct",
+        model="Llama3.1-405B-Instruct",
         instructions="You are a helpful assistant",
         sampling_params={
             "strategy": "greedy",
@@ -87,33 +109,27 @@ async def run_main(host: str, port: int, docs_dir: str):
     )
 
     agent = Agent(client, agent_config)
-    session_id = agent.create_session("test-session")
-    print(f"Created session_id={session_id} for Agent({agent.agent_id})")
 
-    user_prompts = [
-        "What do I need to document for each medical device?",
-    ]
+    # load dataset and generate responses for the RAG agent
+    df = pd.read_csv(input_file_path)
+    user_prompts = df["input_query"].tolist()
 
-    for prompt in user_prompts:
-        response = agent.create_turn(
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            session_id=session_id,
-        )
+    llamastack_generated_responses = []
 
-        async for chunk in response:
-            event = chunk.event
-            event_type = event.payload.event_type
-            if event_type == "turn_complete":
-                print(f"Turn complete: {event.payload.turn.output_message.content}")
+    for prompt in tqdm(user_prompts):
+        print(f"Generating response for: {prompt}")
+        generated_response = await get_response_row(agent, prompt)
+        llamastack_generated_responses.append(generated_response)
+
+    df["generated_answer"] = llamastack_generated_responses
+
+    output_file_path = input_file_path.replace(".csv", "_llamastack_generated.csv")
+    df.to_csv(output_file_path, index=False)
+    print(f"Saved to {output_file_path}")
 
 
-def main(host: str, port: int, docs_dir: str):
-    asyncio.run(run_main(host, port, docs_dir))
+def main(host: str, port: int, docs_dir: str, input_file_path: str):
+    asyncio.run(run_main(host, port, docs_dir, input_file_path))
 
 
 if __name__ == "__main__":

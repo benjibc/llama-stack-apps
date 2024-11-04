@@ -1,23 +1,19 @@
 # RAG Agent Eval
 
-## Preprocess Dataset
+## 0. Preprocess Dataset
 
 ```bash
-python -m examples.rag_agent_eval.preprocess_dataset ~/Desktop/Oracle\ evals\ data/ISO_13485_2016/ISO_13485_2016_01_S007_00_GM_llama-v3p1-405b-instruct_EM_text-embedding-3-large_K_30_175.xlsx ./rag_preprocessed
+python -m examples.rag_agent_eval.preprocess_dataset <path to raw unprocessed dataset> <path to output directory>
 ```
 
-## Score Dataset
+## 0.5 (Optional) RAG Agent Eval Generate
 
 ```bash
-python -m examples.rag_agent_eval.score_dataset localhost 5000 ./rag_preprocessed/processed_ISO_13485_2016_01_S007_00_GM_llama-v3p1-405b-instruct_EM_text-embedding-3-large_K_30_175.xlsx.csv
+python -m examples.rag_agent_eval.rag_agent_generate localhost 5000 <path to docs dir> <path to input query dataset>
 ```
 
-## RAG Agent Eval Generate and Score Dataset
+## 1. Score Dataset
 
 ```bash
-python -m examples.rag_agent_eval.rag_agent_generate localhost 5000 ./rag_preprocessed/processed_ISO_13485_2016_01_S007_00_GM_llama-v3p1-405b-instruct_EM_text-embedding-3-large_K_30_175.xlsx.csv
-```
-
-```bash
-python -m examples.rag_agent_eval.score_dataset localhost 5000 ./rag_preprocessed/processed_ISO_13485_2016_01_S007_00_GM_llama-v3p1-405b-instruct_EM_text-embedding-3-large_K_30_175.xlsx.csv
+python -m examples.rag_agent_eval.score_dataset localhost 5000 <path to processed dataset>
 ```
